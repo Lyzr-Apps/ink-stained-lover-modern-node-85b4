@@ -176,9 +176,34 @@ function ChatTab() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
+  // Key status
+  const [keyStatus, setKeyStatus] = useState<{ checking: boolean; configured: boolean; valid: boolean; preview: string | null; error: string | null }>({
+    checking: true, configured: false, valid: false, preview: null, error: null
+  })
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
+
+  // Check key status on mount
+  useEffect(() => {
+    const checkKey = async () => {
+      try {
+        const res = await fetch('/api/agent')
+        const data = await res.json()
+        setKeyStatus({
+          checking: false,
+          configured: data.api_key_configured || false,
+          valid: data.api_key_valid || false,
+          preview: data.api_key_preview || null,
+          error: data.validation_error || null,
+        })
+      } catch {
+        setKeyStatus({ checking: false, configured: false, valid: false, preview: null, error: 'Could not check key status' })
+      }
+    }
+    checkKey()
+  }, [])
 
   const handleSaveAgent = () => {
     if (!agentId.trim()) return
@@ -268,10 +293,45 @@ function ChatTab() {
                 <HiOutlineChatBubbleLeftRight className="w-7 h-7 text-white" />
               </div>
             </div>
-            <h2 className="text-lg font-semibold text-white text-center mb-1">Start a Conversation</h2>
+            <h2 className="text-lg font-semibold text-white text-center mb-1">Lyzr API Gateway</h2>
             <p className="text-xs text-gray-500 text-center mb-6">
-              Enter your Agent ID to start chatting. The API key is already built into the gateway -- no authentication needed.
+              Enter your Lyzr Agent ID to start chatting. The API key is built into the server -- no authentication needed on your end.
             </p>
+
+            {/* Live Key Status */}
+            <div className="mb-5 p-3 rounded-xl bg-gray-800/60 border border-gray-700/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <HiOutlineKey className="w-4 h-4 text-gray-400" />
+                  <span className="text-xs font-medium text-gray-400">API Key</span>
+                </div>
+                {keyStatus.checking ? (
+                  <span className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                    <HiOutlineArrowPath className="w-3 h-3 animate-spin" />
+                    Checking...
+                  </span>
+                ) : keyStatus.valid ? (
+                  <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium">
+                    <HiOutlineCheckCircle className="w-3.5 h-3.5" />
+                    Valid
+                  </span>
+                ) : keyStatus.configured ? (
+                  <span className="flex items-center gap-1.5 text-[11px] text-amber-400 font-medium">
+                    <HiOutlineXCircle className="w-3.5 h-3.5" />
+                    {keyStatus.error || 'Invalid'}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-[11px] text-red-400 font-medium">
+                    <HiOutlineXCircle className="w-3.5 h-3.5" />
+                    Not configured
+                  </span>
+                )}
+              </div>
+              {keyStatus.preview && (
+                <p className="mt-1.5 text-[11px] font-mono text-gray-500">{keyStatus.preview}</p>
+              )}
+            </div>
+
             <div className="space-y-4">
               <div>
                 <label className="text-xs text-gray-400 font-medium mb-1.5 block">Agent ID</label>
@@ -279,11 +339,14 @@ function ChatTab() {
                   type="text"
                   value={agentId}
                   onChange={(e) => setAgentId(e.target.value)}
-                  placeholder="e.g. 682c3a0f5e2b4f1a9c0d..."
+                  placeholder="Paste your Lyzr agent ID here"
                   className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 text-sm font-mono text-gray-200 placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40"
                   onKeyDown={(e) => { if (e.key === 'Enter') handleSaveAgent() }}
                   autoFocus
                 />
+                <p className="mt-1.5 text-[10px] text-gray-600">
+                  Find your Agent ID in Lyzr Studio under your agent settings
+                </p>
               </div>
               <button
                 onClick={handleSaveAgent}
@@ -294,11 +357,11 @@ function ChatTab() {
                 Connect to Agent
               </button>
             </div>
-            <div className="mt-6 p-3 rounded-lg bg-gray-800/50 border border-gray-700/50">
+            <div className="mt-5 p-3 rounded-lg bg-gray-800/30 border border-gray-700/30">
               <div className="flex items-start gap-2">
                 <HiOutlineShieldCheck className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
                 <p className="text-[11px] text-gray-500 leading-relaxed">
-                  The Lyzr API key is embedded server-side. All requests go through <code className="text-gray-400 bg-gray-900 px-1 rounded">/api/agent</code> which injects <code className="text-gray-400 bg-gray-900 px-1 rounded">x-api-key</code> automatically. No rate limits on your end.
+                  All requests are proxied through <code className="text-gray-400 bg-gray-900 px-1 rounded">/api/agent</code> with <code className="text-gray-400 bg-gray-900 px-1 rounded">x-api-key</code> injected server-side. Your key is never exposed to the browser.
                 </p>
               </div>
             </div>

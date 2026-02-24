@@ -115,12 +115,53 @@ function normalizeResponse(parsed: any): NormalizedAgentResponse {
 }
 
 /**
- * GET /api/agent — health check
+ * GET /api/agent — health check with live key validation
  */
 export async function GET() {
+  const keyConfigured = !!LYZR_API_KEY
+  const keyPreview = keyConfigured
+    ? `${LYZR_API_KEY.slice(0, 8)}...${LYZR_API_KEY.slice(-4)}`
+    : null
+
+  // Live validation: try a lightweight call to verify the key works
+  let keyValid = false
+  let validationError: string | null = null
+
+  if (keyConfigured) {
+    try {
+      const testRes = await fetch('https://agent-prod.studio.lyzr.ai/v3/inference/chat/task', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': LYZR_API_KEY,
+        },
+        body: JSON.stringify({
+          message: '__ping__',
+          agent_id: '__health_check__',
+          user_id: 'health-check',
+          session_id: 'health-check',
+        }),
+      })
+      // A 401/403 means bad key. A 422/400/404 means key is valid but agent_id is wrong (expected).
+      if (testRes.status === 401 || testRes.status === 403) {
+        keyValid = false
+        validationError = 'API key is invalid or expired'
+      } else {
+        // Any other status (200, 400, 404, 422, 500) means the key authenticated successfully
+        keyValid = true
+      }
+    } catch (err) {
+      keyValid = false
+      validationError = 'Could not reach Lyzr API'
+    }
+  }
+
   return NextResponse.json({
     status: 'ok',
-    api_key_configured: !!LYZR_API_KEY,
+    api_key_configured: keyConfigured,
+    api_key_preview: keyPreview,
+    api_key_valid: keyValid,
+    validation_error: validationError,
     timestamp: new Date().toISOString(),
   })
 }
