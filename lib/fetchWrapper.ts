@@ -92,6 +92,19 @@ const fetchWrapper = async (...args) => {
     } // if backend is erroring out
     else if (response.status >= 500) {
       const requestUrl = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
+      // For API routes that return structured JSON errors (like /api/agent),
+      // return the response so callers can read the error details.
+      // Only swallow non-JSON 500s (server crashes, etc.)
+      const ct = response.headers.get("content-type") || "";
+      if (ct.includes("application/json")) {
+        // Still notify parent for logging, but return response for caller
+        sendErrorToParent(
+          `Backend returned ${response.status} error for ${requestUrl}`,
+          response.status,
+          requestUrl,
+        );
+        return response;
+      }
       sendErrorToParent(
         `Backend returned ${response.status} error for ${requestUrl}`,
         response.status,

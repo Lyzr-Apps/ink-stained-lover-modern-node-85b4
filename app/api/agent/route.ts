@@ -115,6 +115,17 @@ function normalizeResponse(parsed: any): NormalizedAgentResponse {
 }
 
 /**
+ * GET /api/agent — health check
+ */
+export async function GET() {
+  return NextResponse.json({
+    status: 'ok',
+    api_key_configured: !!LYZR_API_KEY,
+    timestamp: new Date().toISOString(),
+  })
+}
+
+/**
  * POST /api/agent
  *
  * Two modes, both POST:
@@ -123,7 +134,19 @@ function normalizeResponse(parsed: any): NormalizedAgentResponse {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        {
+          success: false,
+          response: { status: 'error', result: {}, message: 'Invalid or empty JSON body' },
+          error: 'Invalid or empty JSON body. POST requires a JSON body with { message, agent_id } or { task_id }.',
+        },
+        { status: 400 }
+      )
+    }
 
     if (!LYZR_API_KEY) {
       return NextResponse.json(
