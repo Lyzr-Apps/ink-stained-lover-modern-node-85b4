@@ -149,14 +149,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (!LYZR_API_KEY) {
-      return NextResponse.json(
-        {
-          success: false,
-          response: { status: 'error', result: {}, message: 'LYZR_API_KEY not configured' },
-          error: 'LYZR_API_KEY not configured on server',
-        },
-        { status: 500 }
-      )
+      return NextResponse.json({
+        success: false,
+        response: { status: 'error', result: {}, message: 'LYZR_API_KEY not configured on server. Check your .env.local file.' },
+        error: 'LYZR_API_KEY not configured on server',
+      })
     }
 
     // ── Poll mode: body has task_id ──
@@ -231,15 +228,14 @@ async function submitTask(body: any) {
         errorMsg = errorData?.error || errorData?.message || errorMsg
       } catch {}
     }
-    return NextResponse.json(
-      {
-        success: false,
-        response: { status: 'error', result: {}, message: errorMsg },
-        error: errorMsg,
-        raw_response: submitText,
-      },
-      { status: submitRes.status }
-    )
+    // Return 200 with success:false — the caller handles the error.
+    // Returning the upstream status (e.g. 500) triggers fetchWrapper's error banner.
+    return NextResponse.json({
+      success: false,
+      response: { status: 'error', result: {}, message: errorMsg },
+      error: errorMsg,
+      raw_response: submitText,
+    })
   }
 
   const { task_id } = await submitRes.json()
@@ -268,15 +264,14 @@ async function pollTask(task_id: string) {
     const msg = pollRes.status === 404
       ? 'Task expired or not found'
       : `Poll failed with status ${pollRes.status}`
-    return NextResponse.json(
-      {
-        success: false,
-        status: 'failed',
-        error: msg,
-        raw_response: pollText,
-      },
-      { status: pollRes.status }
-    )
+    // Return 200 with success:false — avoids triggering fetchWrapper error banner
+    return NextResponse.json({
+      success: false,
+      status: 'failed',
+      response: { status: 'error', result: {}, message: msg },
+      error: msg,
+      raw_response: pollText,
+    })
   }
 
   const task = await pollRes.json()
@@ -286,17 +281,14 @@ async function pollTask(task_id: string) {
     return NextResponse.json({ status: 'processing' })
   }
 
-  // Task failed
+  // Task failed — return 200 with success:false so fetchWrapper doesn't trigger error banner
   if (task.status === 'failed') {
-    return NextResponse.json(
-      {
-        success: false,
-        status: 'failed',
-        response: { status: 'error', result: {}, message: task.error || 'Agent task failed' },
-        error: task.error || 'Agent task failed',
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({
+      success: false,
+      status: 'failed',
+      response: { status: 'error', result: {}, message: task.error || 'Agent task failed' },
+      error: task.error || 'Agent task failed',
+    })
   }
 
   // Task completed — envelope extraction + parseLLMJson + normalizeResponse

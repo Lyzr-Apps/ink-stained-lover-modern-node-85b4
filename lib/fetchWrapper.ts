@@ -93,16 +93,10 @@ const fetchWrapper = async (...args) => {
     else if (response.status >= 500) {
       const requestUrl = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
       // For API routes that return structured JSON errors (like /api/agent),
-      // return the response so callers can read the error details.
-      // Only swallow non-JSON 500s (server crashes, etc.)
+      // return the response silently so callers can handle the error themselves.
+      // This avoids triggering the parent iframe error banner for handled errors.
       const ct = response.headers.get("content-type") || "";
       if (ct.includes("application/json")) {
-        // Still notify parent for logging, but return response for caller
-        sendErrorToParent(
-          `Backend returned ${response.status} error for ${requestUrl}`,
-          response.status,
-          requestUrl,
-        );
         return response;
       }
       sendErrorToParent(
